@@ -1,0 +1,7 @@
+# Netlify local state (created by deploy CLI)
+.netlify/
+
+# macOS / Xcode
+.DS_Store
+xcuserdata/
+*.xcuserstate
