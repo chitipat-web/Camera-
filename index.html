@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <title>กล้องตรวจจับความเคลื่อนไหว</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <h1>📹 กล้องตรวจจับความเคลื่อนไหว</h1>
+      <span id="status" class="status idle">พร้อมใช้งาน</span>
+    </header>
+
+    <section class="viewport">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div id="motion-flash" class="motion-flash"></div>
+    </section>
+
+    <section class="controls">
+      <button id="btn-start" class="btn primary">▶ เริ่มตรวจจับ</button>
+      <button id="btn-stop" class="btn danger" hidden>⏹ หยุด</button>
+      <button id="btn-switch" class="btn">🔄 สลับกล้อง</button>
+    </section>
+
+    <section class="settings">
+      <label>
+        ความไว (Sensitivity): <span id="sens-value">25</span>
+        <input type="range" id="sensitivity" min="5" max="80" value="25">
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="sound-alert" checked> 🔔 เสียงเตือนเมื่อพบความเคลื่อนไหว
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="auto-capture" checked> 📸 ถ่ายภาพอัตโนมัติเมื่อพบความเคลื่อนไหว
+      </label>
+    </section>
+
+    <section class="gallery-section">
+      <h2>ภาพที่บันทึกไว้ <button id="btn-clear" class="btn small">ล้างทั้งหมด</button></h2>
+      <div id="gallery" class="gallery"></div>
+    </section>
+  </main>
+
+  <canvas id="work-canvas" hidden></canvas>
+  <script src="app.js"></script>
+</body>
+</html>
