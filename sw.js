@@ -1,5 +1,5 @@
 // Service worker แบบเรียบง่าย: cache ไฟล์หลักเพื่อให้เปิดแอพแบบออฟไลน์ได้
-const CACHE_NAME = 'motioncam-v1';
+const CACHE_NAME = 'motioncam-v2';
 const ASSETS = ['.', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
