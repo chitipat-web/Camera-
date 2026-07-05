@@ -59,6 +59,36 @@ let modelFailed = false;
 let aiBusy = false;
 let lastAIRun = 0;
 
+// โมเดลโครงกระดูก (MoveNet) — ใช้วาดเส้นโครงกระดูกของคนแทนกรอบ
+let poseDetector = null;
+let poseLoading = null;
+let poseFailed = false;
+let skeletonEdges = null;
+
+// โหลดโมเดลโครงกระดูก ถ้าโหลดไม่ได้จะถอยกลับไปวาดกรอบให้คนแทน (แอพยังใช้ได้ปกติ)
+function loadPoseModel() {
+  if (poseDetector || poseLoading || poseFailed) return;
+  if (typeof poseDetection === 'undefined') {
+    poseFailed = true;
+    return;
+  }
+  poseLoading = poseDetection
+    .createDetector(poseDetection.SupportedModels.MoveNet, {
+      modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING,
+    })
+    .then((d) => {
+      poseDetector = d;
+      skeletonEdges = poseDetection.util.getAdjacentPairs(
+        poseDetection.SupportedModels.MoveNet
+      );
+      poseLoading = null;
+    })
+    .catch(() => {
+      poseFailed = true;
+      poseLoading = null;
+    });
+}
+
 // โหลดไม่ได้ (เช่น ออฟไลน์) → ถอยกลับไปโหมดตรวจจับความเคลื่อนไหวทุกอย่าง
 function onModelUnavailable() {
   modelFailed = true;
@@ -80,6 +110,7 @@ function loadModel() {
     return null;
   }
   setStatus('⏳ กำลังโหลด AI...', 'idle');
+  loadPoseModel();
   modelLoading = cocoSsd
     .load({ base: 'lite_mobilenet_v2' })
     .then((m) => {
@@ -158,9 +189,35 @@ function detectMotion(curr, prev) {
   return { ratio, box };
 }
 
+// วาดเส้นโครงกระดูกของคนแต่ละท่าที่ MoveNet ตรวจพบ
+function drawSkeletons(poses) {
+  overlayCtx.lineWidth = 3;
+  for (const pose of poses) {
+    const kp = pose.keypoints;
+    overlayCtx.strokeStyle = '#22d3ee';
+    for (const [i, j] of skeletonEdges) {
+      const a = kp[i];
+      const b = kp[j];
+      if (a.score > 0.3 && b.score > 0.3) {
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(a.x, a.y);
+        overlayCtx.lineTo(b.x, b.y);
+        overlayCtx.stroke();
+      }
+    }
+    overlayCtx.fillStyle = '#ef4444';
+    for (const p of kp) {
+      if (p.score > 0.3) {
+        overlayCtx.beginPath();
+        overlayCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        overlayCtx.fill();
+      }
+    }
+  }
+}
+
 // วาดกรอบพร้อมชื่อคลาสที่ AI ตรวจพบ (พิกัดจาก coco-ssd อยู่ในสเกลของวิดีโออยู่แล้ว)
 function drawPredictionBoxes(preds) {
-  overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
   overlayCtx.strokeStyle = '#ef4444';
   overlayCtx.fillStyle = '#ef4444';
   overlayCtx.lineWidth = 3;
@@ -250,8 +307,15 @@ function onMotionDetected(box) {
 }
 
 // โหมด AI: เตือนเฉพาะเมื่อเจอคนหรือสัตว์
-function onLivingDetected(preds) {
-  drawPredictionBoxes(preds);
+// คนวาดเป็นเส้นโครงกระดูก (ถ้าโมเดล pose พร้อม) ส่วนสัตว์วาดเป็นกรอบ
+function onLivingDetected(preds, poses) {
+  overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+  if (poses.length) {
+    drawSkeletons(poses);
+    drawPredictionBoxes(preds.filter((p) => p.class !== 'person'));
+  } else {
+    drawPredictionBoxes(preds);
+  }
   const names = [...new Set(preds.map((p) => LIVING_CLASSES[p.class]))].join(', ');
   triggerAlert(`🚨 พบ${names}!`, names);
 }
@@ -268,7 +332,18 @@ async function verifyLivingThing() {
     const living = preds.filter(
       (p) => LIVING_CLASSES[p.class] && p.score >= AI_SCORE_THRESHOLD
     );
-    if (living.length && running) onLivingDetected(living);
+    if (!living.length || !running) return;
+
+    // ถ้าเจอคนและโมเดลโครงกระดูกพร้อม ให้หาท่าทางเพื่อวาดเส้นโครงกระดูก
+    let poses = [];
+    if (poseDetector && living.some((p) => p.class === 'person')) {
+      try {
+        poses = await poseDetector.estimatePoses(video);
+      } catch (e) {
+        // หาโครงกระดูกไม่สำเร็จ → วาดกรอบแทน
+      }
+    }
+    if (running) onLivingDetected(living, poses);
   } catch (e) {
     // ตรวจไม่สำเร็จ ครั้งหน้าลองใหม่
   } finally {
